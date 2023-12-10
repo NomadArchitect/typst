@@ -80,6 +80,8 @@ struct Args {
     print: PrintConfig,
     #[arg(long)]
     nocapture: bool, // simply ignores the argument for backward compatibility
+    #[arg(short, long)]
+    verbose: bool, // prevents the terminal from being cleared of tests names
 }
 
 /// Which things to print out for debugging.
@@ -522,8 +524,10 @@ fn test(
         if ok {
             writeln!(stdout, " ✔").unwrap();
             if stdout.is_terminal() {
-                // ANSI escape codes: cursor moves up and clears the line.
-                write!(stdout, "\x1b[1A\x1b[2K").unwrap();
+                if !args.verbose {
+                    // ANSI escape codes: cursor moves up and clears the line.
+                    write!(stdout, "\x1b[1A\x1b[2K").unwrap();
+                }
             }
         } else {
             writeln!(stdout, " ❌").unwrap();
