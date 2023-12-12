@@ -528,11 +528,9 @@ fn test(
         stdout.write_all(name.to_string_lossy().as_bytes()).unwrap();
         if ok {
             writeln!(stdout, " ✔").unwrap();
-            if stdout.is_terminal() {
-                if !args.verbose {
-                    // ANSI escape codes: cursor moves up and clears the line.
-                    write!(stdout, "\x1b[1A\x1b[2K").unwrap();
-                }
+            if stdout.is_terminal() && !args.verbose {
+                // ANSI escape codes: cursor moves up and clears the line.
+                write!(stdout, "\x1b[1A\x1b[2K").unwrap();
             }
         } else {
             writeln!(stdout, " ❌").unwrap();
@@ -765,9 +763,9 @@ fn test_part(
 
                 write!(output, "        Missing       | ").unwrap();
                 for item in missing {
-                    write!(output, "{:?}, ", item).unwrap()
+                    write!(output, "{item:?}, ").unwrap()
                 }
-                write!(output, "\n").unwrap();
+                writeln!(output).unwrap();
                 ok = false;
             }
 
@@ -784,9 +782,9 @@ fn test_part(
 
                 write!(output, "        Undesired       | ").unwrap();
                 for item in undesired {
-                    write!(output, "{:?}, ", item).unwrap()
+                    write!(output, "{item:?}, ").unwrap()
                 }
-                write!(output, "\n").unwrap();
+                writeln!(output).unwrap();
                 ok = false;
             }
         }
