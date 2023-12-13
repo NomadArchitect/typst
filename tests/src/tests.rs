@@ -618,8 +618,7 @@ fn test_part(
 
     let diagnostic_annotations = metadata
         .annotations
-        .clone()
-        .into_iter()
+        .iter()
         .filter(|a| {
             !matches!(
                 a.kind,
@@ -627,6 +626,7 @@ fn test_part(
                     | AnnotationKind::AutocompleteExcludes
             )
         })
+        .cloned()
         .collect::<HashSet<_>>();
 
     if !validate_autocomplete {
