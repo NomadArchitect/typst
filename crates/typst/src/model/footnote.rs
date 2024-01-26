@@ -4,8 +4,8 @@ use std::str::FromStr;
 use crate::diag::{bail, At, SourceResult, StrResult};
 use crate::engine::Engine;
 use crate::foundations::{
-    cast, elem, scope, Content, Finalize, Label, NativeElement, Packed, Show, Smart,
-    StyleChain, Synthesize,
+    cast, elem, scope, Content, Label, NativeElement, Packed, Show, ShowSet, Smart,
+    StyleChain, Styles, Synthesize,
 };
 use crate::introspection::{Count, Counter, CounterUpdate, Locatable, Location};
 use crate::layout::{Abs, Em, HElem, Length, Ratio};
@@ -188,7 +188,7 @@ cast! {
 /// #footnote[It's down here]
 /// has red text!
 /// ```
-#[elem(name = "entry", title = "Footnote Entry", Show, Finalize)]
+#[elem(name = "entry", title = "Footnote Entry", Show, ShowSet)]
 pub struct FootnoteEntry {
     /// The footnote for this entry. It's location can be used to determine
     /// the footnote counter state.
@@ -303,13 +303,14 @@ impl Show for Packed<FootnoteEntry> {
     }
 }
 
-impl Finalize for Packed<FootnoteEntry> {
-    fn finalize(&self, realized: Content, _: StyleChain) -> Content {
+impl ShowSet for Packed<FootnoteEntry> {
+    fn show_set(&self, _: StyleChain) -> Styles {
         let text_size = Em::new(0.85);
         let leading = Em::new(0.5);
-        realized
-            .styled(ParElem::set_leading(leading.into()))
-            .styled(TextElem::set_size(TextSize(text_size.into())))
+        let mut out = Styles::new();
+        out.set(ParElem::set_leading(leading.into()));
+        out.set(TextElem::set_size(TextSize(text_size.into())));
+        out
     }
 }
 

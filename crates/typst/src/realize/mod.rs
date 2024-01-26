@@ -13,8 +13,8 @@ use typed_arena::Arena;
 use crate::diag::{bail, SourceResult};
 use crate::engine::{Engine, Route};
 use crate::foundations::{
-    Behave, Behaviour, Content, Finalize, Guard, NativeElement, Packed, Recipe, Selector,
-    Show, StyleChain, StyleVec, StyleVecBuilder, Styles, Synthesize,
+    Behave, Behaviour, Content, Guard, NativeElement, Packed, Recipe, Selector, Show,
+    ShowSet, StyleChain, StyleVec, StyleVecBuilder, Styles, Synthesize, Transformation,
 };
 use crate::introspection::{Locatable, Meta, MetaElem};
 use crate::layout::{
@@ -80,7 +80,11 @@ pub fn applicable(target: &Content, styles: StyleChain) -> bool {
 
     // Find out whether any recipe matches and is unguarded.
     for recipe in styles.recipes() {
-        if !target.is_guarded(Guard(n)) && recipe.applicable(target) {
+        if !target.is_guarded(Guard(n))
+            && recipe.applicable(target)
+            && (!matches!(recipe.transform, Transformation::Style(_))
+                || !target.is_prepared())
+        {
             return true;
         }
         n -= 1;
@@ -95,36 +99,64 @@ pub fn realize(
     target: &Content,
     styles: StyleChain,
 ) -> SourceResult<Option<Content>> {
+    // A map of extra styles that we need to apply to the element.
+    // This can include metadata and show-set styles.
+    let mut map = Styles::new();
+
+    // Apply user-defined show-set rules.
+    if !target.is_prepared() {
+        for recipe in styles.recipes() {
+            let Transformation::Style(transform) = &recipe.transform else { continue };
+            // TODO: This matching should take into account the styles.
+            if recipe.applicable(target) {
+                map.apply(transform.clone());
+            }
+        }
+
+        // Apply built-in show-set rules.
+        if let Some(show_settable) = target.with::<dyn ShowSet>() {
+            map.apply(show_settable.show_set(styles.chain(&map)));
+        }
+    }
+
     // Pre-process.
-    if target.needs_preparation() {
+    if target.needs_preparation() || !map.is_empty() {
+        // A copy of the target that we can modify.
         let mut elem = target.clone();
-        if target.can::<dyn Locatable>() || target.label().is_some() {
-            let location = engine.locator.locate(hash128(target));
+
+        // Generate a location for the element, which uniquely identifies it in
+        // the document. This has some overhead, so we only do it for elements
+        // that are explicitly marked as locatable and labelled elements.
+        if elem.can::<dyn Locatable>() || elem.label().is_some() {
+            let location = engine.locator.locate(hash128(&elem));
             elem.set_location(location);
         }
 
+        // Copy style chain fields into the element itself and also possibly
+        // generate some extra "synthesized" fields. Do this after show-set so
+        // that those are respected.
         if let Some(synthesizable) = elem.with_mut::<dyn Synthesize>() {
-            synthesizable.synthesize(engine, styles)?;
+            synthesizable.synthesize(engine, styles.chain(&map))?;
         }
 
+        // Ensure that this preparation only runs once by marking the element as
+        // prepared.
         elem.mark_prepared();
 
-        let span = elem.span();
-        let meta = elem.location().is_some().then(|| Meta::Elem(elem.clone()));
+        // Apply metadata be able to find the element in the frames.
+        // Do this after synthesis, so that it includes the synthesized fields.
+        if elem.location().is_some() {
+            // Add a style to the whole element's subtree identifying it as
+            // belonging to the element.
+            map.set(MetaElem::set_data(smallvec![Meta::Elem(elem.clone())]));
 
-        let mut content = elem;
-        if let Some(finalizable) = target.with::<dyn Finalize>() {
-            content = finalizable.finalize(content, styles);
+            // Attach an extra meta elem so that the metadata styles are not
+            // lost in case the element's show rule results in nothing.
+            // Note: After this `elem` is a sequence rather than the element.
+            elem += MetaElem::new().pack().spanned(elem.span());
         }
 
-        if let Some(meta) = meta {
-            return Ok(Some(
-                (content + MetaElem::new().pack().spanned(span))
-                    .styled(MetaElem::set_data(smallvec![meta])),
-            ));
-        } else {
-            return Ok(Some(content));
-        }
+        return Ok(Some(elem.styled_with_map(map)));
     }
 
     // Find out how many recipes there are.
@@ -133,7 +165,10 @@ pub fn realize(
     // Find an applicable show rule recipe.
     for recipe in styles.recipes() {
         let guard = Guard(n);
-        if !target.is_guarded(guard) && recipe.applicable(target) {
+        if !matches!(recipe.transform, Transformation::Style(_))
+            && !target.is_guarded(guard)
+            && recipe.applicable(target)
+        {
             if let Some(content) = try_apply(engine, target, recipe, guard)? {
                 return Ok(Some(content));
             }

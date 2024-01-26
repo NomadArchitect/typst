@@ -1,8 +1,8 @@
 use crate::diag::SourceResult;
 use crate::engine::Engine;
 use crate::foundations::{
-    cast, elem, Content, Finalize, Label, NativeElement, Packed, Show, Smart, StyleChain,
-    Synthesize,
+    cast, elem, Content, Label, NativeElement, Packed, Show, ShowSet, Smart, StyleChain,
+    Styles, Synthesize,
 };
 use crate::layout::{Alignment, BlockElem, Em, HElem, PadElem, Spacing, VElem};
 use crate::model::{CitationForm, CiteElem};
@@ -40,7 +40,7 @@ use crate::text::{SmartQuoteElem, SpaceElem, TextElem};
 ///   flame of Udûn. Go back to the Shadow! You cannot pass.
 /// ]
 /// ```
-#[elem(Finalize, Show, Synthesize)]
+#[elem(ShowSet, Show, Synthesize)]
 pub struct QuoteElem {
     /// Whether this is a block quote.
     ///
@@ -205,15 +205,16 @@ impl Show for Packed<QuoteElem> {
     }
 }
 
-impl Finalize for Packed<QuoteElem> {
-    fn finalize(&self, realized: Content, _: StyleChain) -> Content {
+impl ShowSet for Packed<QuoteElem> {
+    fn show_set(&self, _: StyleChain) -> Styles {
         let x = Em::new(1.0).into();
         let above = Em::new(2.4).into();
         let below = Em::new(1.8).into();
-        realized
-            .styled(PadElem::set_left(x))
-            .styled(PadElem::set_right(x))
-            .styled(BlockElem::set_above(VElem::block_around(above)))
-            .styled(BlockElem::set_below(VElem::block_around(below)))
+        let mut out = Styles::new();
+        out.set(PadElem::set_left(x));
+        out.set(PadElem::set_right(x));
+        out.set(BlockElem::set_above(VElem::block_around(above)));
+        out.set(BlockElem::set_below(VElem::block_around(below)));
+        out
     }
 }

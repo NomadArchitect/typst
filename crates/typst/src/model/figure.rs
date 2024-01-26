@@ -7,8 +7,8 @@ use ecow::EcoString;
 use crate::diag::{bail, SourceResult};
 use crate::engine::Engine;
 use crate::foundations::{
-    cast, elem, scope, select_where, Content, Element, Finalize, NativeElement, Packed,
-    Selector, Show, Smart, StyleChain, Synthesize,
+    cast, elem, scope, select_where, Content, Element, NativeElement, Packed, Selector,
+    Show, ShowSet, Smart, StyleChain, Styles, Synthesize,
 };
 use crate::introspection::{
     Count, Counter, CounterKey, CounterUpdate, Locatable, Location,
@@ -101,7 +101,7 @@ use crate::visualize::ImageElem;
 ///   caption: [I'm up here],
 /// )
 /// ```
-#[elem(scope, Locatable, Synthesize, Count, Show, Finalize, Refable, Outlinable)]
+#[elem(scope, Locatable, Synthesize, Count, Show, ShowSet, Refable, Outlinable)]
 pub struct FigureElem {
     /// The content of the figure. Often, an [image]($image).
     #[required]
@@ -342,10 +342,11 @@ impl Show for Packed<FigureElem> {
     }
 }
 
-impl Finalize for Packed<FigureElem> {
-    fn finalize(&self, realized: Content, _: StyleChain) -> Content {
-        // Allow breakable figures with `show figure: set block(breakable: true)`.
-        realized.styled(BlockElem::set_breakable(false))
+impl ShowSet for Packed<FigureElem> {
+    fn show_set(&self, _: StyleChain) -> Styles {
+        // Still allows breakable figures with
+        // `show figure: set block(breakable: true)`.
+        BlockElem::set_breakable(false).into()
     }
 }
 
